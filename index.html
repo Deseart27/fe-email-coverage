@@ -163,9 +163,28 @@
 
   .country-name { color: #333; font-weight: 500; }
 
+  .country-emails {
+    font-weight: 600;
+    color: #1a1a2e;
+    font-size: 12px;
+  }
+
+  .country-sep {
+    color: #ccc;
+    margin: 0 2px;
+    font-size: 11px;
+  }
+
+  .country-total {
+    color: #999;
+    font-size: 12px;
+  }
+
   .country-rate {
     font-weight: 600;
     color: #3366cc;
+    font-size: 12px;
+    margin-left: 8px;
   }
 
   .country-rate.pending {
@@ -188,6 +207,56 @@
     height: 100%;
     background: #3366cc;
     border-radius: 3px;
+  }
+
+  /* Mobile responsive */
+  @media (max-width: 768px) {
+    body {
+      padding: 16px;
+    }
+
+    h1 { font-size: 18px; }
+
+    .region-tabs {
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .region-tab {
+      padding: 6px 14px;
+      font-size: 12px;
+    }
+
+    .dashboard {
+      flex-direction: column;
+    }
+
+    .map-container {
+      flex: none;
+      width: 100%;
+    }
+
+    #map {
+      height: 280px;
+    }
+
+    .metrics-panel {
+      width: 100%;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .metric-card {
+      padding: 14px 16px;
+    }
+
+    .metric-value {
+      font-size: 22px;
+    }
+
+    .country-list-card {
+      max-height: 250px;
+    }
   }
 </style>
 </head>
@@ -261,8 +330,23 @@ function renderMetrics(region) {
   const m = computeMetrics(items);
   const container = document.getElementById("metrics");
 
-  // Sort countries by success rate desc
-  const sorted = [...items].sort((a, b) => b.success_rate - a.success_rate);
+  // Sort countries by B2B relevance priority
+  const B2B_PRIORITY = {
+    "Global": ["United States", "France", "United Kingdom", "Germany", "Canada", "Australia", "Netherlands", "Italy", "Spain", "India", "Brazil", "Japan", "Singapore", "United Arab Emirates", "South Korea", "Switzerland", "Sweden", "Ireland", "Israel", "Mexico", "Belgium", "Denmark", "Norway", "South Africa", "Saudi Arabia", "Poland", "Turkey", "China", "Argentina", "Colombia", "Philippines", "Indonesia", "Portugal", "New Zealand", "Chile", "Malaysia", "Thailand", "Nigeria", "Egypt", "Taiwan", "Hong Kong S.A.R.", "Czechia", "Romania", "Pakistan", "Vietnam", "Kenya", "Morocco", "Ukraine", "Peru", "Ecuador", "Venezuela", "Bangladesh", "Russia", "Iran", "Algeria"],
+    "North America": ["United States", "Canada"],
+    "Europe": ["France", "United Kingdom", "Germany", "Netherlands", "Italy", "Spain", "Switzerland", "Sweden", "Ireland", "Belgium", "Denmark", "Norway", "Poland", "Portugal", "Czechia", "Romania", "Turkey", "Ukraine", "Russia"],
+    "Asia-Pacific": ["Australia", "Japan", "Singapore", "India", "South Korea", "Hong Kong S.A.R.", "New Zealand", "China", "Taiwan", "Malaysia", "Thailand", "Indonesia", "Philippines", "Pakistan", "Vietnam", "Bangladesh"],
+    "Latam": ["Brazil", "Mexico", "Argentina", "Colombia", "Chile", "Peru", "Ecuador", "Venezuela"],
+    "Middle East & Africa": ["United Arab Emirates", "Israel", "Saudi Arabia", "South Africa", "Nigeria", "Egypt", "Kenya", "Morocco", "Algeria", "Iran"],
+  };
+  const priority = B2B_PRIORITY[region] || [];
+  const sorted = [...items].sort((a, b) => {
+    const ai = priority.indexOf(a.country);
+    const bi = priority.indexOf(b.country);
+    const pa = ai >= 0 ? ai : 999;
+    const pb = bi >= 0 ? bi : 999;
+    return pa - pb;
+  });
 
   container.innerHTML = `
     <div class="metric-card highlight">
@@ -281,20 +365,15 @@ function renderMetrics(region) {
       <div class="metric-value">${m.processed}/${m.total}</div>
       <div class="metric-label">Countries Processed</div>
     </div>
-    <div class="metric-card">
-      <div class="metric-value">${fmt(m.totalEnriched)}</div>
-      <div class="metric-label">Contacts Enriched</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-value">${fmt(m.totalFound)}</div>
-      <div class="metric-label">Emails Found</div>
-    </div>
-    <div class="country-list-card">
+<div class="country-list-card">
       <h3>Countries — ${region}</h3>
       ${sorted.map(d => `
         <div class="country-row">
           <span class="country-name">${d.country}</span>
           <span>
+            <span class="country-emails">${d.processed ? fmt(d.projected_emails) : '—'}</span>
+            <span class="country-sep">/</span>
+            <span class="country-total">${fmt(d.total_contacts)}</span>
             <span class="country-rate ${d.processed ? '' : 'pending'}">
               ${d.processed ? pct(d.success_rate) : 'pending'}
             </span>
