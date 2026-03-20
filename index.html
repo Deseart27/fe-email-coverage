@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FullEnrich — Email Coverage Projection</title>
+<script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, system-ui, sans-serif;
+    background: #f5f6fa;
+    color: #1a1a2e;
+    padding: 32px 40px;
+  }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 24px;
+  }
+
+  /* Region buttons */
+  .region-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  .region-tab {
+    padding: 8px 20px;
+    border-radius: 20px;
+    border: 1.5px solid #dde1e8;
+    background: #fff;
+    font-size: 13px;
+    font-weight: 500;
+    color: #444;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .region-tab:hover {
+    border-color: #3366cc;
+    color: #3366cc;
+  }
+
+  .region-tab.active {
+    background: #3366cc;
+    border-color: #3366cc;
+    color: #fff;
+  }
+
+  /* Main layout */
+  .dashboard {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+  }
+
+  .map-container {
+    flex: 0 0 58%;
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid #e8eaef;
+    padding: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+
+  #map {
+    width: 100%;
+    height: 420px;
+  }
+
+  /* Metrics grid */
+  .metrics-panel {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .metric-card {
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid #e8eaef;
+    padding: 20px 22px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    transition: all 0.25s;
+  }
+
+  .metric-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.07);
+    transform: translateY(-1px);
+  }
+
+  .metric-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1a1a2e;
+    line-height: 1.1;
+  }
+
+  .metric-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 6px;
+  }
+
+  .metric-card.highlight {
+    border-color: #3366cc;
+    background: linear-gradient(135deg, #f0f4ff 0%, #fff 100%);
+  }
+
+  .metric-card.highlight .metric-value {
+    color: #3366cc;
+  }
+
+  /* Country list */
+  .country-list-card {
+    grid-column: 1 / -1;
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid #e8eaef;
+    padding: 16px 22px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    max-height: 180px;
+    overflow-y: auto;
+  }
+
+  .country-list-card h3 {
+    font-size: 12px;
+    font-weight: 600;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+  }
+
+  .country-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid #f5f5f5;
+    font-size: 13px;
+  }
+
+  .country-row:last-child { border-bottom: none; }
+
+  .country-name { color: #333; font-weight: 500; }
+
+  .country-rate {
+    font-weight: 600;
+    color: #3366cc;
+  }
+
+  .country-rate.pending {
+    color: #ccc;
+    font-weight: 400;
+    font-style: italic;
+  }
+
+  .bar-bg {
+    width: 60px;
+    height: 6px;
+    background: #eee;
+    border-radius: 3px;
+    margin-left: 10px;
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  .bar-fill {
+    height: 100%;
+    background: #3366cc;
+    border-radius: 3px;
+  }
+</style>
+</head>
+<body>
+
+<h1>FullEnrich — Worldwide Email Coverage</h1>
+<p class="subtitle">Projection based on enrichment of sampled contacts across 55 countries</p>
+
+<div class="region-tabs" id="regionTabs"></div>
+
+<div class="dashboard">
+  <div class="map-container">
+    <div id="map"></div>
+  </div>
+  <div class="metrics-panel" id="metrics"></div>
+</div>
+
+<script>
+const DATA = [{"country": "United States", "iso": "USA", "region": "North America", "tier": "I", "total_contacts": 223969628, "enriched": 296, "emails_found": 239, "success_rate": 0.8074, "projected_emails": 180840341, "processed": true}, {"country": "India", "iso": "IND", "region": "Asia-Pacific", "tier": "II", "total_contacts": 91732357, "enriched": 274, "emails_found": 151, "success_rate": 0.5511, "projected_emails": 50553233, "processed": true}, {"country": "Brazil", "iso": "BRA", "region": "Latam", "tier": "I", "total_contacts": 60975592, "enriched": 265, "emails_found": 193, "success_rate": 0.7283, "projected_emails": 44408638, "processed": true}, {"country": "United Kingdom", "iso": "GBR", "region": "Europe", "tier": "I", "total_contacts": 37856499, "enriched": 273, "emails_found": 214, "success_rate": 0.7839, "projected_emails": 29675057, "processed": true}, {"country": "France", "iso": "FRA", "region": "Europe", "tier": "I", "total_contacts": 25100460, "enriched": 271, "emails_found": 220, "success_rate": 0.8118, "projected_emails": 20376757, "processed": true}, {"country": "Canada", "iso": "CAN", "region": "North America", "tier": "I", "total_contacts": 22962402, "enriched": 275, "emails_found": 210, "success_rate": 0.7636, "projected_emails": 17534925, "processed": true}, {"country": "Mexico", "iso": "MEX", "region": "Latam", "tier": "I", "total_contacts": 21660407, "enriched": 264, "emails_found": 188, "success_rate": 0.7121, "projected_emails": 15424835, "processed": true}, {"country": "Indonesia", "iso": "IDN", "region": "Asia-Pacific", "tier": "II", "total_contacts": 18053761, "enriched": 272, "emails_found": 117, "success_rate": 0.4301, "projected_emails": 7765772, "processed": true}, {"country": "Italy", "iso": "ITA", "region": "Europe", "tier": "I", "total_contacts": 16824421, "enriched": 273, "emails_found": 223, "success_rate": 0.8168, "projected_emails": 13743025, "processed": true}, {"country": "Spain", "iso": "ESP", "region": "Europe", "tier": "I", "total_contacts": 15700717, "enriched": 271, "emails_found": 211, "success_rate": 0.7786, "projected_emails": 12224543, "processed": true}, {"country": "Australia", "iso": "AUS", "region": "Asia-Pacific", "tier": "I", "total_contacts": 14290830, "enriched": 268, "emails_found": 225, "success_rate": 0.8396, "projected_emails": 11997898, "processed": true}, {"country": "Germany", "iso": "DEU", "region": "Europe", "tier": "I", "total_contacts": 13897331, "enriched": 270, "emails_found": 220, "success_rate": 0.8148, "projected_emails": 11323751, "processed": true}, {"country": "Colombia", "iso": "COL", "region": "Latam", "tier": "II", "total_contacts": 12346452, "enriched": 267, "emails_found": 162, "success_rate": 0.6067, "projected_emails": 7491105, "processed": true}, {"country": "Turkey", "iso": "TUR", "region": "Europe", "tier": "I", "total_contacts": 11756331, "enriched": 272, "emails_found": 206, "success_rate": 0.7574, "projected_emails": 8903691, "processed": true}, {"country": "Argentina", "iso": "ARG", "region": "Latam", "tier": "II", "total_contacts": 11477648, "enriched": 273, "emails_found": 195, "success_rate": 0.7143, "projected_emails": 8198320, "processed": true}, {"country": "China", "iso": "CHN", "region": "Asia-Pacific", "tier": "I", "total_contacts": 11283721, "enriched": 270, "emails_found": 114, "success_rate": 0.4222, "projected_emails": 4764237, "processed": true}, {"country": "Philippines", "iso": "PHL", "region": "Asia-Pacific", "tier": "II", "total_contacts": 10275541, "enriched": 269, "emails_found": 150, "success_rate": 0.5576, "projected_emails": 5729855, "processed": true}, {"country": "Netherlands", "iso": "NLD", "region": "Europe", "tier": "I", "total_contacts": 9902021, "enriched": 268, "emails_found": 225, "success_rate": 0.8396, "projected_emails": 8313263, "processed": true}, {"country": "South Africa", "iso": "ZAF", "region": "Middle East & Africa", "tier": "II", "total_contacts": 9368872, "enriched": 253, "emails_found": 174, "success_rate": 0.6877, "projected_emails": 6443413, "processed": true}, {"country": "Pakistan", "iso": "PAK", "region": "Asia-Pacific", "tier": "I", "total_contacts": 8016509, "enriched": 262, "emails_found": 99, "success_rate": 0.3779, "projected_emails": 3029138, "processed": true}, {"country": "Peru", "iso": "PER", "region": "Latam", "tier": "II", "total_contacts": 7699464, "enriched": 269, "emails_found": 178, "success_rate": 0.6617, "projected_emails": 5094812, "processed": true}, {"country": "Chile", "iso": "CHL", "region": "Latam", "tier": "II", "total_contacts": 7304789, "enriched": 270, "emails_found": 188, "success_rate": 0.6963, "projected_emails": 5086297, "processed": true}, {"country": "Egypt", "iso": "EGY", "region": "Middle East & Africa", "tier": "I", "total_contacts": 6440566, "enriched": 272, "emails_found": 136, "success_rate": 0.5, "projected_emails": 3220283, "processed": true}, {"country": "United Arab Emirates", "iso": "ARE", "region": "Middle East & Africa", "tier": "I", "total_contacts": 6397793, "enriched": 78, "emails_found": 46, "success_rate": 0.5897, "projected_emails": 3773057, "processed": true}, {"country": "Saudi Arabia", "iso": "SAU", "region": "Middle East & Africa", "tier": "II", "total_contacts": 6311940, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Malaysia", "iso": "MYS", "region": "Asia-Pacific", "tier": "II", "total_contacts": 6149092, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Nigeria", "iso": "NGA", "region": "Middle East & Africa", "tier": "II", "total_contacts": 5912984, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Russia", "iso": "RUS", "region": "Europe", "tier": "II", "total_contacts": 5014627, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Poland", "iso": "POL", "region": "Europe", "tier": "I", "total_contacts": 4868341, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Sweden", "iso": "SWE", "region": "Europe", "tier": "I", "total_contacts": 4409706, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Vietnam", "iso": "VNM", "region": "Asia-Pacific", "tier": "I", "total_contacts": 4337052, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Belgium", "iso": "BEL", "region": "Europe", "tier": "I", "total_contacts": 4304736, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Portugal", "iso": "PRT", "region": "Europe", "tier": "I", "total_contacts": 4113847, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Bangladesh", "iso": "BGD", "region": "Asia-Pacific", "tier": "II", "total_contacts": 3818027, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Ecuador", "iso": "ECU", "region": "Latam", "tier": "II", "total_contacts": 3715696, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Switzerland", "iso": "CHE", "region": "Europe", "tier": "I", "total_contacts": 3706201, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Venezuela", "iso": "VEN", "region": "Latam", "tier": "II", "total_contacts": 3590481, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Iran", "iso": "IRN", "region": "Middle East & Africa", "tier": "I", "total_contacts": 3328507, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Singapore", "iso": "SGP", "region": "Asia-Pacific", "tier": "I", "total_contacts": 3254301, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Morocco", "iso": "MAR", "region": "Middle East & Africa", "tier": "I", "total_contacts": 3078002, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Romania", "iso": "ROU", "region": "Europe", "tier": "I", "total_contacts": 3068708, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Denmark", "iso": "DNK", "region": "Europe", "tier": "I", "total_contacts": 2982571, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Kenya", "iso": "KEN", "region": "Middle East & Africa", "tier": "II", "total_contacts": 2894111, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Ukraine", "iso": "UKR", "region": "Europe", "tier": "I", "total_contacts": 2687426, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Thailand", "iso": "THA", "region": "Asia-Pacific", "tier": "I", "total_contacts": 2657318, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Japan", "iso": "JPN", "region": "Asia-Pacific", "tier": "I", "total_contacts": 2607243, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Ireland", "iso": "IRL", "region": "Europe", "tier": "I", "total_contacts": 2580151, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "New Zealand", "iso": "NZL", "region": "Asia-Pacific", "tier": "II", "total_contacts": 2547730, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "South Korea", "iso": "KOR", "region": "Asia-Pacific", "tier": "I", "total_contacts": 2451807, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Algeria", "iso": "DZA", "region": "Middle East & Africa", "tier": "II", "total_contacts": 2263438, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Norway", "iso": "NOR", "region": "Europe", "tier": "I", "total_contacts": 2180157, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Taiwan", "iso": "TWN", "region": "Asia-Pacific", "tier": "I", "total_contacts": 2138010, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Hong Kong S.A.R.", "iso": "HKG", "region": "Asia-Pacific", "tier": "I", "total_contacts": 2127634, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Israel", "iso": "ISR", "region": "Middle East & Africa", "tier": "I", "total_contacts": 2051674, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}, {"country": "Czechia", "iso": "CZE", "region": "Europe", "tier": "II", "total_contacts": 1879985, "enriched": 0, "emails_found": 0, "success_rate": 0.0, "projected_emails": 0, "processed": false}];
+const REGIONS = ["Global", "North America", "Europe", "Asia-Pacific", "Latam", "Middle East & Africa"];
+
+const REGION_COLORS = {
+  "Global": "#3366cc",
+  "North America": "#2d7dd2",
+  "Europe": "#3366cc",
+  "Asia-Pacific": "#4a90d9",
+  "Latam": "#5b8abf",
+  "Middle East & Africa": "#2c5aa0",
+};
+
+const INACTIVE_COLOR = "#dce3ed";
+const ACTIVE_COLOR = "#3366cc";
+
+let currentRegion = "Global";
+
+function fmt(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + "B";
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
+  return n.toString();
+}
+
+function pct(n) {
+  return (n * 100).toFixed(1) + "%";
+}
+
+function getFilteredData(region) {
+  if (region === "Global") return DATA;
+  return DATA.filter(d => d.region === region);
+}
+
+function computeMetrics(items) {
+  const totalContacts = items.reduce((s, d) => s + d.total_contacts, 0);
+  const totalEnriched = items.reduce((s, d) => s + d.enriched, 0);
+  const totalFound = items.reduce((s, d) => s + d.emails_found, 0);
+  const projected = items.reduce((s, d) => s + d.projected_emails, 0);
+  const rate = totalEnriched > 0 ? totalFound / totalEnriched : 0;
+  const processed = items.filter(d => d.processed).length;
+  return { totalContacts, totalEnriched, totalFound, projected, rate, processed, total: items.length };
+}
+
+function renderTabs() {
+  const container = document.getElementById("regionTabs");
+  container.innerHTML = REGIONS.map(r =>
+    `<div class="region-tab ${r === currentRegion ? 'active' : ''}" onclick="selectRegion('${r}')">${r}</div>`
+  ).join("");
+}
+
+function renderMetrics(region) {
+  const items = getFilteredData(region);
+  const m = computeMetrics(items);
+  const container = document.getElementById("metrics");
+
+  // Sort countries by success rate desc
+  const sorted = [...items].sort((a, b) => b.success_rate - a.success_rate);
+
+  container.innerHTML = `
+    <div class="metric-card highlight">
+      <div class="metric-value">${fmt(m.projected)}</div>
+      <div class="metric-label">Projected Emails</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value">${fmt(m.totalContacts)}</div>
+      <div class="metric-label">Total Contacts</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value">${m.totalEnriched > 0 ? pct(m.rate) : "—"}</div>
+      <div class="metric-label">Success Rate</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value">${m.processed}/${m.total}</div>
+      <div class="metric-label">Countries Processed</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value">${fmt(m.totalEnriched)}</div>
+      <div class="metric-label">Contacts Enriched</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value">${fmt(m.totalFound)}</div>
+      <div class="metric-label">Emails Found</div>
+    </div>
+    <div class="country-list-card">
+      <h3>Countries — ${region}</h3>
+      ${sorted.map(d => `
+        <div class="country-row">
+          <span class="country-name">${d.country}</span>
+          <span>
+            <span class="country-rate ${d.processed ? '' : 'pending'}">
+              ${d.processed ? pct(d.success_rate) : 'pending'}
+            </span>
+            <span class="bar-bg"><span class="bar-fill" style="width:${d.success_rate * 100}%"></span></span>
+          </span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderMap(region) {
+  const active = getFilteredData(region);
+  const activeISOs = new Set(active.map(d => d.iso));
+
+  // Active countries (in selected region)
+  const activeData = active.filter(d => d.processed);
+  const pendingActive = active.filter(d => !d.processed);
+
+  // All other countries in our dataset but not in region
+  const others = region === "Global" ? [] : DATA.filter(d => !activeISOs.has(d.iso));
+
+  const traces = [];
+
+  // Other regions — faded
+  if (others.length > 0) {
+    traces.push({
+      type: "choropleth",
+      locations: others.map(d => d.iso),
+      z: others.map(() => 0.5),
+      text: others.map(d => `<b>${d.country}</b><br>${d.region}`),
+      hovertemplate: "%{text}<extra></extra>",
+      colorscale: [[0, INACTIVE_COLOR], [1, INACTIVE_COLOR]],
+      showscale: false,
+      marker: { line: { color: "#fff", width: 0.5 } },
+    });
+  }
+
+  // Pending in region — lighter blue
+  if (pendingActive.length > 0) {
+    traces.push({
+      type: "choropleth",
+      locations: pendingActive.map(d => d.iso),
+      z: pendingActive.map(() => 0.5),
+      text: pendingActive.map(d =>
+        `<b>${d.country}</b> (Tier ${d.tier})<br>` +
+        `Contacts: ${fmt(d.total_contacts)}<br>` +
+        `<i>Enrichment pending</i>`
+      ),
+      hovertemplate: "%{text}<extra></extra>",
+      colorscale: [[0, "#a8c4e0"], [1, "#a8c4e0"]],
+      showscale: false,
+      marker: { line: { color: "#fff", width: 0.5 } },
+    });
+  }
+
+  // Processed in region — full blue gradient
+  if (activeData.length > 0) {
+    traces.push({
+      type: "choropleth",
+      locations: activeData.map(d => d.iso),
+      z: activeData.map(d => d.projected_emails),
+      text: activeData.map(d =>
+        `<b>${d.country}</b> (Tier ${d.tier})<br><br>` +
+        `Sample: ${d.enriched} enriched<br>` +
+        `Emails found: ${d.emails_found}<br>` +
+        `<b>Success rate: ${pct(d.success_rate)}</b><br><br>` +
+        `Total contacts: ${fmt(d.total_contacts)}<br>` +
+        `<b>Projected emails: ${fmt(d.projected_emails)}</b>`
+      ),
+      hovertemplate: "%{text}<extra></extra>",
+      colorscale: [
+        [0, "#a8c4e0"],
+        [0.3, "#6a9fd8"],
+        [0.6, "#3366cc"],
+        [1, "#1a3a7a"],
+      ],
+      showscale: false,
+      marker: { line: { color: "#fff", width: 0.5 } },
+    });
+  }
+
+  const layout = {
+    geo: {
+      showframe: false,
+      showcoastlines: false,
+      showland: true,
+      landcolor: "#eef1f6",
+      showocean: true,
+      oceancolor: "#fff",
+      showcountries: true,
+      countrycolor: "#e0e0e0",
+      projection: { type: "natural earth" },
+      bgcolor: "#fff",
+    },
+    paper_bgcolor: "#fff",
+    plot_bgcolor: "#fff",
+    margin: { l: 0, r: 0, t: 0, b: 0 },
+    height: 420,
+    dragmode: false,
+  };
+
+  Plotly.react("map", traces, layout, { displayModeBar: false, responsive: true });
+}
+
+function selectRegion(region) {
+  currentRegion = region;
+  renderTabs();
+  renderMap(region);
+  renderMetrics(region);
+}
+
+// Init
+renderTabs();
+renderMap("Global");
+renderMetrics("Global");
+</script>
+</body>
+</html>
